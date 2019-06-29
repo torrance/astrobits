@@ -1,11 +1,11 @@
 from __future__ import division
 
-from numba import njit, float64, prange
+from numba import njit, float32, float64, prange
 import numpy as  np
 
 # This is valid in the flux region 10^-7.5 < S < 75 Jy
 
-@njit([float64[:](float64[:])], parallel=True)
+@njit([float32[:](float32[:]), float64[:](float64[:])], parallel=True)
 def logdNdS(logS):
     _logdNdS = np.empty_like(logS)
 
@@ -36,7 +36,7 @@ def logdNdS(logS):
     return _logdNdS
 
 
-@njit([float64[:](float64[:])])
+@njit([float32[:](float32[:]), float64[:](float64[:])])
 def dNdS(S):
     logS = np.log10(S)
     return 10**logdNdS(logS)
