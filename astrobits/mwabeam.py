@@ -80,11 +80,13 @@ class MWABeam(object):
 
     def get_rgi(self, freq):
         # Calculate Jones vector across grid
-        try:
-            # Try to see if we've cached the interpolator already
-            return self.rgi_cache[freq]
-        except KeyError:
-            with threadlock:
+        with threadlock:
+            # Theadlock to avoid multiple accesses to mwa_pb which
+            # probably isn't threadsafe; and also cache stampede
+            try:
+                # Try to see if we've cached the interpolator already
+                return self.rgi_cache[freq]
+            except KeyError:
                 grid_zas = np.radians(np.linspace(0, 90, 10 * 90 + 1))
                 grid_azs = np.radians(np.linspace(0, 360, 10 * 360 + 1))
 
