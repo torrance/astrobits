@@ -1,15 +1,25 @@
 from __future__ import print_function, division
 
+from multiprocessing.dummy import Pool
+import threading
+import time as tm
+import sys
+
 from astropy.coordinates import SkyCoord
 from astropy.io.fits import getheader
 from astropy.time import Time
 import astropy.units as units
 import mwa_pb.config
+import mwa_pb.beam_full_EE as beam_full_EE
 import mwa_pb.primary_beam as pb
 from numba import njit, float64, int64, prange
 import numpy as np
 
 from astrobits.coordinates import radec_to_altaz
+
+
+# Global threadlock to ensure threadsafe access to mwa_pb
+threadlock = threading.Lock()
 
 
 class MWABeam(object):
@@ -21,9 +31,67 @@ class MWABeam(object):
         self.delays = [delays, delays] # Shuts up mwa_pb
         self.location = mwa_pb.config.MWAPOS
 
-    def jones(self, ras, decs, freq):
-        alt, az = radec_to_altaz(ras, decs, self.time, self.location)
-        return pb.MWA_Tile_full_EE(np.pi/2 - alt, az, freq, delays=self.delays, jones=True)
+    def jones(self, ras, decs, freq, time=None):
+        if time is None:
+            time = self.time
+
+        alt, az = radec_to_altaz(ras, decs, time, self.location)
+        with threadlock:
+            return pb.MWA_Tile_full_EE(np.pi/2 - alt, az, freq, delays=self.delays, jones=True)
+
+    def joness(self, ras, decs, freq, time=None):
+        if time is None:
+            time = self.time
+
+        t0 = tm.time()
+        alt, az = radec_to_altaz(ras, decs, time, self.location)
+        za = np.pi / 2 - alt
+
+        # Calculate Jones vector across grid
+        with threadlock:
+            tile = beam_full_EE.get_AA_Cached(target_freq_Hz=freq)
+            beam = beam_full_EE.Beam(tile, self.delays, amps=np.ones([2, 16]))
+            grid_zas = np.radians(np.linspace(0, 90, 5 * 90 + 1))
+            grid_azs = np.radians(np.linspace(0, 360, 5 * 360 + 1))
+
+            gridded_jones = beam.get_FF(grid_azs, grid_zas, grid=True)  # [2, 2, alt, az]
+            gridded_jones = np.transpose(gridded_jones, [2, 3, 0, 1])  # [alt, az, 2, 2]
+        print("Gridding beam elapsed: %g" % (tm.time() - t0)); sys.stdout.flush()
+
+        # Interpolate Jones vector onto our points
+        jones = np.zeros((len(ras), 2, 2), dtype=np.complex)
+
+        def _thread(start, end):
+            for i, j in [(0, 0), (0, 1), (1, 0), (1, 1)]:
+                jones[start:end, i, j] += RegularGridInterpolator(
+                    (grid_azs, grid_zas),
+                    gridded_jones[:, :,  i, j].real,
+                    method='linear',
+                    bounds_error=False,
+                    fill_value=0,
+                )(np.array((az[start:end], za[start:end])).T)
+
+                jones[start:end, i, j] += 1j * RegularGridInterpolator(
+                    (grid_azs, grid_zas),
+                    gridded_jones[:, :,  i, j].imag,
+                    method='linear',
+                    bounds_error=False,
+                    fill_value=0,
+                )(np.array((az[start:end], za[start:end])).T)
+
+        t0 = tm.time()
+        batch = 100000
+        pool = Pool()
+        for start in range(0, len(ras), batch):
+            end = start + batch
+            pool.apply_async(_thread, (start, end))
+            #_thread(start, end)
+
+        pool.close()
+        pool.join()
+        print("Interpolating beam points elapsed: %g" % (tm.time() - t0)); sys.stdout.flush()
+
+        return jones
 
 
 def minimalmap(ras, decs, radius):
