@@ -7,7 +7,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 
-def angular_two_point(data, bins, N = 100, Rn = None):
+def angular_two_point(data, bins, N = 100, Rn = None, datafilter=None):
     print("Calculating angular correlation function...", end="", file=sys.stderr)
     sys.stdout.flush()
 
@@ -32,7 +32,7 @@ def angular_two_point(data, bins, N = 100, Rn = None):
     for _ in range(N):
         res = pool.apply_async(
             _angular_two_point,
-            (cKDTree(data.T), bins, min_ra, max_ra, min_dec, max_dec, Rn, DD),
+            (cKDTree(data.T), bins, min_ra, max_ra, min_dec, max_dec, Rn, DD, datafilter),
         )
         results.append(res)
     pool.close()
@@ -45,12 +45,15 @@ def angular_two_point(data, bins, N = 100, Rn = None):
     return corrs
 
 
-def _angular_two_point(D, bins, min_ra, max_ra, min_dec, max_dec, Rn, DD):
+def _angular_two_point(D, bins, min_ra, max_ra, min_dec, max_dec, Rn, DD, datafilter):
     # Each worker thread needs a new seed, or else they'll generate the same random values
     np.random.seed()
 
     # Generate random sample
     R = uniform_sphere(min_ra, max_ra, min_dec, max_dec, Rn)
+    # Allow for bespoke masking of region
+    if datafilter:
+        R = datafilter(R)
     R = radec_to_xyz(R[0], R[1])  # [x, y, z]
     R = cKDTree(R.T)
 
