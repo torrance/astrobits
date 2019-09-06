@@ -42,6 +42,14 @@ class MWABeam(object):
         with threadlock:
             return pb.MWA_Tile_full_EE(np.pi/2 - alt, az, freq, delays=self.delays, jones=True)
 
+    def power(self, ras, decs, freq, time=None):
+        if time is None:
+            time = self.time
+
+        alt, az = radec_to_altaz(ras, decs, time, self.location)
+        with threadlock:
+            return pb.MWA_Tile_full_EE(np.pi/2 - alt, az, freq, delays=self.delays, power=True)
+
     def joness(self, ras, decs, freqs, time=None):
         if time is None:
             time = self.time
