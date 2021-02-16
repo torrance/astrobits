@@ -3,7 +3,7 @@ from __future__ import division
 from numba import njit, float32, float64, prange
 import numpy as  np
 
-# This is valid in the flux region 10^-7.5 < S < 75 Jy
+# This is valid in the flux region 10^-7.5 < S < 75 Jy at 154 MHz.
 
 @njit([float32[:](float32[:]), float64[:](float64[:])], parallel=True)
 def logdNdS(logS):
@@ -42,3 +42,37 @@ def dNdS(S):
     return 10**logdNdS(logS)
 
 
+@njit([float32[:](float32[:]), float64[:](float64[:])])
+def dNdSTRECS1400(Ss):
+    """
+    This is a fitted dNdS to TRECS deep1x1 simulation at 1400 MHz.
+    It is fit on data from 1E-1 down to 1E-9.
+    """
+    coeffs = [-5.61548545e-05, -2.83866491e-03, -5.48423751e-02, -5.28207741e-01, -2.71030259e+00, -7.28522125e+00, -8.81332290e+00, -1.74312446e+00]
+
+    logSs = np.log10(Ss)
+    logdNdSTRECS = np.zeros_like(logSs)
+    logdNdSTRECS += -2.5 * logSs
+
+    for power, coeff in enumerate(coeffs[::-1]):
+        logdNdSTRECS += coeff * logSs**power
+
+    return 10**logdNdSTRECS
+
+
+@njit([float32[:](float32[:]), float64[:](float64[:])])
+def dNdSTRECS150(Ss):
+    """
+    This is a fitted dNdS to TRECS deep1x1 simulation at 150 MHz.
+    It is fit on data from 1E-0 down to 1E-8.5.
+    """
+    coeffs = [-8.26643173e-05, -3.10493654e-03, -4.63622889e-02, -3.44862848e-01, -1.30157946e+00, -2.27034046e+00, -8.54033001e-01,  3.33331939e+00]
+
+    logSs = np.log10(Ss)
+    logdNdSTRECS = np.zeros_like(logSs)
+    logdNdSTRECS += -2.5 * logSs
+
+    for power, coeff in enumerate(coeffs[::-1]):
+        logdNdSTRECS += coeff * logSs**power
+
+    return 10**logdNdSTRECS

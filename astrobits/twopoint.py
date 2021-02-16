@@ -7,7 +7,64 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 
-def angular_two_point(data, bins, N = 100, Rn = None, datafilter=None):
+def two_point(xyzs, bins, N, Rn=None):
+    """
+    xyzs : [n, 3]
+    """
+    print("Calculating two point correlation function...", end="", file=sys.stderr)
+    sys.stdout.flush()
+
+    if Rn is None:
+        Rn = len(xyzs)
+
+    minx, maxx, miny, maxy, minz, maxz = xyzs[:, 0].min(), xyzs[:, 0].max(), xyzs[:, 1].min(), xyzs[:, 1].max(), xyzs[:, 2].min(), xyzs[:, 2].max()
+
+    D = cKDTree(xyzs)
+    DD = D.count_neighbors(D, r=bins, cumulative=False)[1:]
+
+    pool = Pool()
+    results = []
+    for i in range(N):
+        res = pool.apply_async(
+            _two_point,
+            (bins, D, DD, Rn, minx, maxx, miny, maxy, minz, maxz),
+        )
+        # _two_point(bins, D, DD, Rn, minx, maxx, miny, maxy, minz, maxz)
+        results.append(res)
+    pool.close()
+    pool.join()
+
+    corrs = np.zeros((N, len(bins) - 1))
+    for i, res in enumerate(results):
+        corrs[i] = res.get()
+
+    print("Done", file=sys.stderr)
+
+    return corrs
+
+
+def _two_point(bins, D, DD, Rn, minx, maxx, miny, maxy, minz, maxz):
+    # Each worker thread needs a new seed, or else they'll generate the same random values
+    np.random.seed()
+
+    R = np.random.rand(Rn, 3) * np.array([maxx - minx, maxy - miny, maxz - minz])[None, :]
+    R -= np.array([minx, miny, minz])[None, :]
+    R = cKDTree(R)
+
+    DR = D.count_neighbors(R, r=bins, cumulative=False)[1:]
+    RR = R.count_neighbors(R, r=bins, cumulative=False)[1:]
+    f = D.n / R.n
+
+    print(".", end="", file=sys.stderr)
+    sys.stdout.flush()
+
+    return (DD - 2 * f * DR + f**2 * RR) / (f**2 * RR)
+
+
+def angular_two_point(data, bins, N=100, Rn=None, datafilter=None):
+    """
+    data : [2, n]
+    """
     print("Calculating angular correlation function...", end="", file=sys.stderr)
     sys.stdout.flush()
 
