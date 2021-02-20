@@ -4,7 +4,7 @@ from numba import njit, float64
 import numpy as np
 
 
-@njit([(float64[:, :], float64[:], float64[:], float64[:])])
+@njit()
 def paint(canvas, xs, ys, vals):
     """
     Paints values at xs, ys onto canvas.
