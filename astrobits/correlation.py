@@ -52,8 +52,8 @@ def radialcrosscorrelation(img, kernel, bins, normalize=True, imgmean=None, kern
     return mus, sigmas, dists.reshape(-1)[idxs], auto.reshape(-1)[idxs]
 
 
-def radialautocorrelation(img, bins):
-    return radialcrosscorrelation(img, img, bins)
+def radialautocorrelation(img, bins, **kwargs):
+    return radialcrosscorrelation(img, img, bins, **kwargs)
 
 
 def calcdists(shape):
