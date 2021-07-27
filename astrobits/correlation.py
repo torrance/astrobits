@@ -7,12 +7,13 @@ import numpy as np
 from scipy.signal import correlate
 
 
-def radialcrosscorrelation(img, kernel, bins, normalize=True, imgmean=None, kernelmean=None, sigma2=None):
+def radialcrosscorrelation(img, kernel, bins, normalize=True, imgmean=None, kernelmean=None, sigma2=None, Ns=None):
     assert(img.shape == kernel.shape)
 
     if normalize:
         # Calculate Ns
-        Ns = np.ones_like(img)
+        if Ns is None:
+            Ns = np.ones_like(img)
         print("Calculating Ns...", end=""); sys.stdout.flush()
         Ns = correlate(Ns, Ns, mode="same")
         print(" Done.")
@@ -73,14 +74,14 @@ def radialaverage(auto, bins, idxs):
     Ns = np.zeros(len(bins) - 1)
 
     for val, idx in zip(auto, idxs):
-        if 0 < idx < len(bins):
+        if np.isfinite(val) and 0 < idx < len(bins):
             mus[idx - 1] += val
             Ns[idx - 1] += 1
 
     mus /= Ns
 
     for val, idx in zip(auto, idxs):
-        if 0 < idx < len(bins):
+        if np.isfinite(val) and 0 < idx < len(bins):
             variances[idx] += (val - mus[idx])**2
 
     variances /= Ns
